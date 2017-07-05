@@ -39,7 +39,11 @@ object App extends App {
                     Future(HttpResponse(StatusCodes.RetryWith))
                 } else {
                     val solution = Solution(List(Item("knife", 10, 10)))
-                    Future(HttpResponse(StatusCodes.OK, entity = HttpEntity(ContentTypes.`application/json`, SolutionJsonFormat.write(solution).toJson.compactPrint.getBytes)))
+                    Future(HttpResponse(
+                        StatusCodes.OK,
+                        entity = HttpEntity(ContentTypes.`application/json`,
+                        solution.toJson.compactPrint.getBytes)
+                    ))
                 }
             } else {
                 Future(HttpResponse(StatusCodes.NotFound))
@@ -59,16 +63,7 @@ case class Solution(items: List[Item])
 object KnapsackJsonProtocol extends DefaultJsonProtocol with SprayJsonSupport {
     implicit val itemFormat: RootJsonFormat[Item] = jsonFormat3(Item)
     implicit val problemFormat: RootJsonFormat[Problem] = jsonFormat2(Problem)
-    implicit val solutionFormat: RootJsonFormat[Solution] = rootFormat(lazyFormat(jsonFormat1(Solution)))
-    implicit object SolutionJsonFormat extends JsonWriter[Solution]{
-        def write(solution: Solution): JsValue = JsObject(
-                "items" -> JsArray(solution.items.map(item => JsObject(
-                    "name" -> JsString(item.name),
-                    "value" -> JsNumber(item.value),
-                    "volume" -> JsNumber(item.volume)
-                )).toVector)
-            ).toJson
-    }
+    implicit val solutionFormat: RootJsonFormat[Solution] = jsonFormat1(Solution)
 }
 
 
