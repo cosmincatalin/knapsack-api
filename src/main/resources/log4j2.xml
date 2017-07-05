@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN" name="Log4j2 configuration" shutdownHook="disable">
+    <Appenders>
+        <Console target="SYSTEM_OUT" name="Console">
+            <PatternLayout pattern="%highlight{[%-5level][%d{YYYY-MM-dd HH:mm:ss.SSS}][%logger{36}]} %msg%n" />
+        </Console>
+    </Appenders>
+    <Loggers>
+        <Root level="INFO">
+            <AppenderRef ref="Console" />
+        </Root>
+    </Loggers>
+</Configuration>
