@@ -5,6 +5,7 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.unmarshalling.Unmarshal
+import akka.http.scaladsl.unmarshalling.Unmarshaller.UnsupportedContentTypeException
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Sink
 import com.typesafe.config.{Config, ConfigFactory}
@@ -26,8 +27,9 @@ object App extends App {
         new ConnectionOptions().withHost(conf.getString("amqp.host")),
         new net.jodah.lyra.config.Config()
             .withRecoveryPolicy(new RecoveryPolicy()
-            .withBackoff(Duration.seconds(1), Duration.seconds(30))
-            .withMaxAttempts(20)))
+                .withBackoff(Duration.seconds(1), Duration.seconds(30))
+                .withMaxAttempts(20)
+            ))
     val queueName = conf.getString("amqp.queueName")
 
     val controller = new Controller(amqpConnection, queueName)
@@ -42,13 +44,16 @@ object App extends App {
 
     val requestHandler: HttpRequest => Future[HttpResponse] = {
         case HttpRequest(HttpMethods.POST, Uri.Path("/solve"), _, input, _) =>
-            val problem = Unmarshal(input).to[Problem]
-            controller.solve(problem)
+            Unmarshal(input).to[Problem]
+                .map(controller.solve)
                 .map(problemId =>
                     HttpResponse(StatusCodes.OK,
                         entity = HttpEntity(ContentTypes.`application/json`,problemId.toJson.compactPrint.getBytes))
                 )
                 .recoverWith {
+                    case ex @ (_:DeserializationException | _:UnsupportedContentTypeException | _:IllegalRequestException) =>
+                        Future(HttpResponse(StatusCodes.BadRequest, entity = HttpEntity(
+                            ContentTypes.`application/json`, ApiMessage(s"The problem structure is invalid: ${ex.getMessage}").toJson.compactPrint.getBytes())))
                     case ex : Throwable =>
                         logger.error(ex.getMessage, ex)
                         Future(HttpResponse(StatusCodes.InternalServerError))
@@ -81,11 +86,13 @@ object App extends App {
 case class Problem(volume: Int, items: List[Item])
 case class Item(name: String, value: Int, volume: Int)
 case class Solution(items: List[Item])
+case class ApiMessage(message: String)
 
 object KnapsackJsonProtocol extends DefaultJsonProtocol with SprayJsonSupport {
     implicit val itemFormat: RootJsonFormat[Item] = jsonFormat3(Item)
     implicit val problemFormat: RootJsonFormat[Problem] = jsonFormat2(Problem)
     implicit val solutionFormat: RootJsonFormat[Solution] = jsonFormat1(Solution)
+    implicit val apiMessageFormat: RootJsonFormat[ApiMessage] = jsonFormat1(ApiMessage)
 }
 
 
