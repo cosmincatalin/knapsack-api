@@ -15,7 +15,7 @@ class Controller(val amqpConnection: Connection, val queueName: String) {
         problem.map(p => {
             val problemId = java.util.UUID.randomUUID.toString
             val items = p.items.map(i => transport.Item(i.name, i.value, i.volume))
-            val domainProblem = com.cosminsanda.transport.Problem(problemId, p.size, items)
+            val domainProblem = com.cosminsanda.transport.Problem(problemId, p.volume, items)
             val channel = amqpConnection.createChannel()
             channel.basicPublish("", queueName, null, domainProblem.toByteArray)
             channel.close()

@@ -78,7 +78,7 @@ object App extends App {
     serverSource.to(Sink.foreach(_.handleWithAsyncHandler(requestHandler))).run()
 }
 
-case class Problem(size: Int, items: List[Item])
+case class Problem(volume: Int, items: List[Item])
 case class Item(name: String, value: Int, volume: Int)
 case class Solution(items: List[Item])
 

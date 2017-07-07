@@ -4,7 +4,7 @@ package com.cosminsanda.transport;
 
 message Problem {
     string problemId = 1;
-    int32 knapsackSize = 2;
+    int32 knapsackVolume = 2;
     repeated Item items = 3;
 }
 
