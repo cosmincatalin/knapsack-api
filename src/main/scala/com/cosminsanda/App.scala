@@ -8,12 +8,9 @@ import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.http.scaladsl.unmarshalling.Unmarshaller.UnsupportedContentTypeException
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Sink
+import com.google.inject.Guice
 import com.typesafe.config.{Config, ConfigFactory}
-import net.jodah.lyra.{ConnectionOptions, Connections}
-import net.jodah.lyra.config.RecoveryPolicy
-import net.jodah.lyra.util.Duration
 import org.apache.logging.log4j.{LogManager, Logger}
-import scalikejdbc.ConnectionPool
 import spray.json._
 
 import scala.concurrent.Future
@@ -23,22 +20,9 @@ object App extends App {
 
     val logger: Logger = LogManager.getLogger( this.getClass.getName )
     val conf: Config = ConfigFactory.load
+    val injector = Guice.createInjector(new DI)
 
-    val amqpConnection = Connections.create(
-        new ConnectionOptions().withHost(conf.getString("amqp.host")),
-        new net.jodah.lyra.config.Config()
-            .withRecoveryPolicy(new RecoveryPolicy()
-                .withBackoff(Duration.seconds(1), Duration.seconds(30))
-                .withMaxAttempts(20)
-            ))
-    val queueName = conf.getString("amqp.queueName")
-
-    Class.forName("com.mysql.cj.jdbc.Driver")
-    ConnectionPool.singleton(s"jdbc:mysql://${conf.getString("db.host")}:${conf.getString("db.port")}/" +
-      s"${conf.getString("db.name")}?useUnicode=true&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=UTC&useSSL=false",
-        conf.getString("db.user"), conf.getString("db.pass"))
-
-    val controller = new Controller(amqpConnection, queueName, ConnectionPool)
+    val controller = injector.getInstance(classOf[Controller])
 
     implicit val system = ActorSystem()
     implicit val materializer = ActorMaterializer()
@@ -68,12 +52,22 @@ object App extends App {
         case request@HttpRequest(HttpMethods.GET, Uri.Path("/solution"), _, _, _) =>
             val id = request.uri.query().get("id")
             if (id.isDefined) {
-                if (id.toString.length == 0) {
-                    Future(HttpResponse(StatusCodes.RetryWith))
-                } else {
-                    val solution = Solution(List(Item("knife", 10, 10)))
-                    Future(HttpResponse(StatusCodes.OK,
-                        entity = HttpEntity(ContentTypes.`application/json`, solution.toJson.compactPrint.getBytes)))
+                controller.getSolution(id.get) match {
+                    case Left(sol) =>
+                        sol match {
+                            case solution: Some[List[Solution]] =>
+                                if (solution.get.isEmpty) {
+                                    Future(HttpResponse(StatusCodes.RetryWith,
+                                        entity = HttpEntity(ContentTypes.`application/json`, ApiMessage(s"The solution is not ready yet.").toJson.compactPrint.getBytes())))
+                                } else {
+                                    Future(HttpResponse(StatusCodes.OK,
+                                        entity = HttpEntity(ContentTypes.`application/json`, solution.get.head.toJson.compactPrint.getBytes)))
+                                }
+                            case None => Future(HttpResponse(StatusCodes.InternalServerError,
+                                entity = HttpEntity(ContentTypes.`application/json`, ApiMessage(s"The solution will not be computed.").toJson.compactPrint.getBytes())))
+                        }
+                    case _ => Future(HttpResponse(StatusCodes.InternalServerError,
+                        entity = HttpEntity(ContentTypes.`application/json`, ApiMessage(s"The solution will not be computed.").toJson.compactPrint.getBytes())))
                 }
             } else {
                 Future(HttpResponse(StatusCodes.NotFound))
@@ -81,7 +75,6 @@ object App extends App {
 
         case _ => Future(HttpResponse(StatusCodes.NotFound))
     }
-
 
     serverSource.to(Sink.foreach(_.handleWithAsyncHandler(requestHandler))).run()
 }

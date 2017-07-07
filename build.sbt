@@ -17,7 +17,8 @@ libraryDependencies ++= {
         "com.rabbitmq" % "amqp-client" % "4.1.1",
         "net.jodah" % "lyra" % "0.5.4",
         "org.scalikejdbc" %% "scalikejdbc" % "3.0.1",
-        "mysql" % "mysql-connector-java" % "6.0.6"
+        "mysql" % "mysql-connector-java" % "6.0.6",
+        "net.codingwell" %%  "scala-guice" % "4.1.0"
 
     )
 }
