@@ -13,6 +13,7 @@ import net.jodah.lyra.{ConnectionOptions, Connections}
 import net.jodah.lyra.config.RecoveryPolicy
 import net.jodah.lyra.util.Duration
 import org.apache.logging.log4j.{LogManager, Logger}
+import scalikejdbc.ConnectionPool
 import spray.json._
 
 import scala.concurrent.Future
@@ -32,7 +33,12 @@ object App extends App {
             ))
     val queueName = conf.getString("amqp.queueName")
 
-    val controller = new Controller(amqpConnection, queueName)
+    Class.forName("com.mysql.cj.jdbc.Driver")
+    ConnectionPool.singleton(s"jdbc:mysql://${conf.getString("db.host")}:${conf.getString("db.port")}/" +
+      s"${conf.getString("db.name")}?useUnicode=true&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=UTC&useSSL=false",
+        conf.getString("db.user"), conf.getString("db.pass"))
+
+    val controller = new Controller(amqpConnection, queueName, ConnectionPool)
 
     implicit val system = ActorSystem()
     implicit val materializer = ActorMaterializer()
@@ -54,9 +60,6 @@ object App extends App {
                     case ex @ (_:DeserializationException | _:UnsupportedContentTypeException | _:IllegalRequestException) =>
                         Future(HttpResponse(StatusCodes.BadRequest, entity = HttpEntity(
                             ContentTypes.`application/json`, ApiMessage(s"The problem structure is invalid: ${ex.getMessage}").toJson.compactPrint.getBytes())))
-                    case ex : Throwable =>
-                        logger.error(ex.getMessage, ex)
-                        Future(HttpResponse(StatusCodes.InternalServerError))
                     case _ =>
                         val ex = new Exception("Unknown error.")
                         logger.error(ex.getMessage, ex)

@@ -15,7 +15,10 @@ libraryDependencies ++= {
         "com.typesafe.akka" %% "akka-http-spray-json" % akkaHttp,
         "org.json4s" %% "json4s-native" % "3.5.2",
         "com.rabbitmq" % "amqp-client" % "4.1.1",
-        "net.jodah" % "lyra" % "0.5.4"
+        "net.jodah" % "lyra" % "0.5.4",
+        "org.scalikejdbc" %% "scalikejdbc" % "3.0.1",
+        "mysql" % "mysql-connector-java" % "6.0.6"
+
     )
 }
 
