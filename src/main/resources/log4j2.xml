@@ -5,7 +5,8 @@
             <PatternLayout pattern="%highlight{[%-5level][%d{YYYY-MM-dd HH:mm:ss.SSS}][%logger{36}]} %msg%n" />
         </Console>
     </Appenders>
-    <RollingFile name="RollingFile" fileName="logs/knapsack-api.log" filePattern="logs/app-%d{yyyy-MM-dd}-%i.log" append="true" createOnDemand="true">
+    <RollingFile name="RollingFile" fileName="logs/knapsack-api.log" filePattern="logs/app-%d{yyyy-MM-dd}-%i.log"
+                 append="true" createOnDemand="true">
         <PatternLayout pattern="%msg%n" />
         <Policies>
             <SizeBasedTriggeringPolicy size="1 MB" />
