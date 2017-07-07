@@ -45,8 +45,18 @@ object App extends App {
             val problem = Unmarshal(input).to[Problem]
             controller.solve(problem)
                 .map(problemId =>
-                    HttpResponse(StatusCodes.OK, entity = HttpEntity(ContentTypes.`application/json`, problemId.toJson.compactPrint.getBytes))
+                    HttpResponse(StatusCodes.OK,
+                        entity = HttpEntity(ContentTypes.`application/json`,problemId.toJson.compactPrint.getBytes))
                 )
+                .recoverWith {
+                    case ex : Throwable =>
+                        logger.error(ex.getMessage, ex)
+                        Future(HttpResponse(StatusCodes.InternalServerError))
+                    case _ =>
+                        val ex = new Exception("Unknown error.")
+                        logger.error(ex.getMessage, ex)
+                        Future(HttpResponse(StatusCodes.InternalServerError))
+                }
         case request@HttpRequest(HttpMethods.GET, Uri.Path("/solution"), _, _, _) =>
             val id = request.uri.query().get("id")
             if (id.isDefined) {
@@ -54,7 +64,8 @@ object App extends App {
                     Future(HttpResponse(StatusCodes.RetryWith))
                 } else {
                     val solution = Solution(List(Item("knife", 10, 10)))
-                    Future(HttpResponse(StatusCodes.OK, entity = HttpEntity(ContentTypes.`application/json`, solution.toJson.compactPrint.getBytes)))
+                    Future(HttpResponse(StatusCodes.OK,
+                        entity = HttpEntity(ContentTypes.`application/json`, solution.toJson.compactPrint.getBytes)))
                 }
             } else {
                 Future(HttpResponse(StatusCodes.NotFound))
