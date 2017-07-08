@@ -9,7 +9,7 @@ import org.joda.time.DateTime
 import scalikejdbc._
 import spray.json._
 
-class Controller @Inject()(val amqpConnection: Connection, @Named("queueName") val queueName: String) {
+class Proxy @Inject()(val amqpConnection: Connection, @Named("queueName") val queueName: String) {
 
     val channel: Channel = amqpConnection.createChannel()
     channel.queueDeclare(queueName, true, false, false, null)

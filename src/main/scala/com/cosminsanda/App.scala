@@ -3,6 +3,8 @@ package com.cosminsanda
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
+import akka.http.scaladsl.model.ContentTypes.`application/json`
+import akka.http.scaladsl.model.StatusCodes.{BadRequest, InternalServerError, OK, RetryWith}
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.http.scaladsl.unmarshalling.Unmarshaller.UnsupportedContentTypeException
@@ -22,7 +24,7 @@ object App extends App {
     val conf: Config = ConfigFactory.load
     val injector = Guice.createInjector(new DI)
 
-    val controller = injector.getInstance(classOf[Controller])
+    val controller = injector.getInstance(classOf[Proxy])
 
     implicit val system = ActorSystem()
     implicit val materializer = ActorMaterializer()
@@ -36,47 +38,40 @@ object App extends App {
         case HttpRequest(HttpMethods.POST, Uri.Path("/solve"), _, input, _) =>
             Unmarshal(input).to[Problem]
                 .map(controller.solve)
-                .map(problemId =>
-                    HttpResponse(StatusCodes.OK,
-                        entity = HttpEntity(ContentTypes.`application/json`,problemId.toJson.compactPrint.getBytes))
-                )
+                .map(problemId => okStr(problemId))
                 .recoverWith {
                     case ex @ (_:DeserializationException | _:UnsupportedContentTypeException | _:IllegalRequestException) =>
-                        Future(HttpResponse(StatusCodes.BadRequest, entity = HttpEntity(
-                            ContentTypes.`application/json`, ApiMessage(s"The problem structure is invalid: ${ex.getMessage}").toJson.compactPrint.getBytes())))
+                        Future(badReqMessage(s"The problem structure is invalid: ${ex.getMessage}"))
                     case _ =>
-                        val ex = new Exception("Unknown error.")
-                        logger.error(ex.getMessage, ex)
-                        Future(HttpResponse(StatusCodes.InternalServerError))
+                        logger.error("Unknown error")
+                        Future(errorMessage("Unknown error."))
                 }
         case request@HttpRequest(HttpMethods.GET, Uri.Path("/solution"), _, _, _) =>
             val id = request.uri.query().get("id")
-            if (id.isDefined) {
+            if (id.isDefined)
                 controller.getSolution(id.get) match {
                     case Left(sol) =>
                         sol match {
                             case solution: Some[List[Solution]] =>
-                                if (solution.get.isEmpty) {
-                                    Future(HttpResponse(StatusCodes.RetryWith,
-                                        entity = HttpEntity(ContentTypes.`application/json`, ApiMessage(s"The solution is not ready yet.").toJson.compactPrint.getBytes())))
-                                } else {
-                                    Future(HttpResponse(StatusCodes.OK,
-                                        entity = HttpEntity(ContentTypes.`application/json`, solution.get.head.toJson.compactPrint.getBytes)))
-                                }
-                            case None => Future(HttpResponse(StatusCodes.InternalServerError,
-                                entity = HttpEntity(ContentTypes.`application/json`, ApiMessage(s"The solution will not be computed.").toJson.compactPrint.getBytes())))
+                                if (solution.get.isEmpty) Future(retryMessage("The solution is not ready yet."))
+                                else Future(okSolution(solution.get.head))
+                            case None => Future(errorMessage("The solution will not be computed."))
                         }
-                    case _ => Future(HttpResponse(StatusCodes.InternalServerError,
-                        entity = HttpEntity(ContentTypes.`application/json`, ApiMessage(s"The solution will not be computed.").toJson.compactPrint.getBytes())))
+                    case _ => Future(HttpResponse(StatusCodes.NotFound))
                 }
-            } else {
-                Future(HttpResponse(StatusCodes.NotFound))
-            }
+            else Future(HttpResponse(StatusCodes.NotFound))
 
         case _ => Future(HttpResponse(StatusCodes.NotFound))
     }
 
     serverSource.to(Sink.foreach(_.handleWithAsyncHandler(requestHandler))).run()
+
+    def okSolution(solution: Solution) = HttpResponse(OK, entity = HttpEntity(`application/json`, solution.toJson.compactPrint.getBytes))
+    def okStr(obj: String) = HttpResponse(OK, entity = HttpEntity(`application/json`, obj.toJson.compactPrint.getBytes))
+    def retryMessage(message: String) = HttpResponse(RetryWith, entity = HttpEntity(`application/json`, ApiMessage(message).toJson.compactPrint.getBytes()))
+    def errorMessage(message: String) = HttpResponse(InternalServerError, entity = HttpEntity(`application/json`, ApiMessage(message).toJson.compactPrint.getBytes()))
+    def badReqMessage(message: String) = HttpResponse(BadRequest, entity = HttpEntity(`application/json`, ApiMessage(message).toJson.compactPrint.getBytes()))
+
 }
 
 case class Problem(volume: Int, items: List[Item])
@@ -90,5 +85,3 @@ object KnapsackJsonProtocol extends DefaultJsonProtocol with SprayJsonSupport {
     implicit val solutionFormat: RootJsonFormat[Solution] = jsonFormat1(Solution)
     implicit val apiMessageFormat: RootJsonFormat[ApiMessage] = jsonFormat1(ApiMessage)
 }
-
-
