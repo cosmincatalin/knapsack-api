@@ -42,8 +42,8 @@ object App extends App {
                 .recoverWith {
                     case ex @ (_:DeserializationException | _:UnsupportedContentTypeException | _:IllegalRequestException) =>
                         Future(badReqMessage(s"The problem structure is invalid: ${ex.getMessage}"))
-                    case _ =>
-                        logger.error("Unknown error")
+                    case ex: Throwable =>
+                        logger.error("Unknown error", ex)
                         Future(errorMessage("Unknown error."))
                 }
         case request@HttpRequest(HttpMethods.GET, Uri.Path("/solution"), _, _, _) =>
@@ -64,7 +64,9 @@ object App extends App {
         case _ => Future(HttpResponse(StatusCodes.NotFound))
     }
 
+    logger.info("Starting API.")
     serverSource.to(Sink.foreach(_.handleWithAsyncHandler(requestHandler))).run()
+    logger.info("Started API.")
 
     def okSolution(solution: Solution) = HttpResponse(OK, entity = HttpEntity(`application/json`, solution.toJson.compactPrint.getBytes))
     def okStr(obj: String) = HttpResponse(OK, entity = HttpEntity(`application/json`, obj.toJson.compactPrint.getBytes))
