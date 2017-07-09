@@ -15,3 +15,5 @@ EXPOSE $KAPP_PORT
 VOLUME /app
 
 WORKDIR /app
+
+CMD ["java", "-jar", "knapsack-api.jar"]

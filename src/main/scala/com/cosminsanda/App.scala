@@ -64,9 +64,8 @@ object App extends App {
         case _ => Future(HttpResponse(StatusCodes.NotFound))
     }
 
-    logger.info("Starting API.")
-    serverSource.to(Sink.foreach(_.handleWithAsyncHandler(requestHandler))).run()
     logger.info("Started API.")
+    serverSource.to(Sink.foreach(_.handleWithAsyncHandler(requestHandler))).run()
 
     def okSolution(solution: Solution) = HttpResponse(OK, entity = HttpEntity(`application/json`, solution.toJson.compactPrint.getBytes))
     def okStr(obj: String) = HttpResponse(OK, entity = HttpEntity(`application/json`, obj.toJson.compactPrint.getBytes))
